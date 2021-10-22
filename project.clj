@@ -5,5 +5,5 @@
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :dependencies [[org.clojure/clojure "1.10.1"]
                  [com.datomic/datomic-pro "1.0.6344"]]
-  :repl-options {:init-ns datomic01.core})
+  :repl-options {:init-ns ecommerce.core})
 ()
