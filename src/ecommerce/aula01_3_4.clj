@@ -5,7 +5,7 @@
             [datomic.api :as d]))
 
 (def conn (db/open-connection))
-(db/create-schema conn)
+(db/create-schema! conn)
 
 (let
   [
@@ -26,4 +26,4 @@
 (pprint (db/all-products-map (d/db conn)))
 
 
-(db/delete-db)
+(db/delete-db!)

@@ -7,10 +7,11 @@
   (d/create-database db-uri)
   (d/connect db-uri))
 
-(defn delete-db []
+(defn delete-db! []
   (d/delete-database db-uri))
 
 (def schema [
+             ;Product
              {:db/ident       :product/name
               :db/valueType   :db.type/string
               :db/cardinality :db.cardinality/one
@@ -27,9 +28,31 @@
               :db/valueType   :db.type/string
               :db/cardinality :db.cardinality/many
               :db/doc         "Searchable tags for products"}
+             {:db/ident       :product/id
+              :db/valueType   :db.type/uuid
+              :db/cardinality :db.cardinality/one
+              :db/unique      :db.unique/identity}
+             {:db/ident       :product/category
+              :db/valueType   :db.type/ref
+              :db/cardinality :db.cardinality/one
+              }
+             ;Category
+             {:db/ident       :category/id
+              :db/valueType   :db.type/uuid
+              :db/cardinality :db.cardinality/one
+              :db/unique      :db.unique/identity}
+             {:db/ident       :category/name
+              :db/valueType   :db.type/string
+              :db/cardinality :db.cardinality/one
+              :db/doc         "The name of the category"}
+
+             ;Transaction
+             {:db/ident     :tx-data/ip
+              :db/valueType :db.type/string
+              :db/cardinality :db.cardinality/one}
              ])
 
-(defn create-schema [conn]
+(defn create-schema! [conn]
   (d/transact conn schema))
 
 (defn all-products [db]
@@ -87,3 +110,75 @@
   (d/q '[:find (pull ?product [*])
          :in $ ?tag
          :where [?product :product/tag ?tag]] db tag-to-search))
+
+(defn product-by-dbid [db dbid]
+  (d/pull db '[*] dbid))
+
+(defn product-by-id [db id]
+  (d/pull db '[*] [:product/id id]))
+
+
+(defn all-categories [db]
+  (d/q '[:find (pull ?category [*])
+         :where [?category :category/id]] db))
+
+
+(defn add-products! [conn products]
+  (d/transact conn products))
+
+(defn add-categories! [conn categories]
+  (d/transact conn categories))
+
+(defn add-category-to-product! [conn product category]
+  (d/transact conn [[:db/add [:product/id (:product/id product)]
+                     :product/category
+                     [:category/id (:category/id category)]]]))
+
+(defn all-product-names-with-category-names [db]
+  (d/q '[:find ?product-name ?category-name
+         :where [?product :product/name ?product-name]
+         [?product :product/category ?product-cat]
+         [?product-cat :category/name ?category-name]] db))
+
+; forward navigation
+(defn products-with-category-name [db category-name]
+  (d/q '[:find (pull ?product [:product/name :product/price {:product/category [:category/name]}])
+         :in $ ?cat-name
+         :where [?category :category/name ?cat-name]
+         [?product :product/category ?category]] db category-name))
+
+; backward navigation
+(defn products-by-category-name [db category-name]
+  (d/q '[:find (pull ?category [:category/name {:product/_category [:product/name :product/price]}])
+         :in $ ?cat-name
+         :where [?category :category/name ?cat-name]] db category-name))
+
+
+; aggregates
+(defn min-max-count-price [db]
+  (d/q '[:find (min ?price) (max ?price) (count ?price)
+         :with ?product
+         :where [?product :product/price ?price]] db))
+
+; grouping
+(defn min-max-count-price-by-category [db]
+  (d/q '[:find ?cat-name (min ?price) (max ?price) (count ?price)
+         :with ?product
+         :where [?product :product/price ?price]
+         [?product :product/category ?category]
+         [?category :category/name ?cat-name]] db))
+
+
+(defn product-with-max-price [db]
+  (d/q '[:find (pull ?product [*])
+         :where [(q '[:find (max ?price)
+                      :where [_ :product/price ?price]] $)
+                 [[?price]]]
+         [?product :product/price ?price]] db))
+
+
+(defn products-with-given-ip [db ip]
+  (d/q '[:find (pull ?product [*])
+         :in $ ?ip-search
+         :where [?transaction :tx-data/ip ?ip-search]
+         [?product :product/id _ ?transaction]] db ip))

@@ -5,7 +5,7 @@
             [datomic.api :as d]))
 
 (def conn (db/open-connection))
-(db/create-schema conn)
+(db/create-schema! conn)
 
 ; moment 1 of db (empty)
 (let [computer (model/new-product "Novo computador" "/novo_computador" 4000.5M)
@@ -37,4 +37,4 @@
 (pprint (db/all-prducts-by-tag (d/db conn) "computer"))
 (pprint (db/all-prducts-by-tag (d/db conn) "cellphone"))
 
-(db/delete-db)
+(db/delete-db!)
