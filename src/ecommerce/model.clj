@@ -1,4 +1,5 @@
 (ns ecommerce.model
+  (:require [schema.core :as s])
   (:import (java.util UUID)))
 
 (defn uuid [] (UUID/randomUUID))
@@ -22,3 +23,15 @@
     :category/id   uuid
     :category/name name
     }))
+
+(def Category
+  {:category/name s/Str
+   :category/id UUID})
+
+(def Product
+  {:product/name                 s/Str
+   :product/slug                 s/Str
+   :product/price                BigDecimal
+   :product/id                   UUID
+   (s/optional-key :product/tag) [s/Str]
+   (s/optional-key :product/category) Category})

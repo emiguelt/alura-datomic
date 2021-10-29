@@ -1,5 +1,8 @@
 (ns ecommerce.db
-  (:require [datomic.api :as d]))
+  (:require [datomic.api :as d]
+            [ecommerce.model :as model]
+            [schema.core :as s]
+            [clojure.walk :as walk]))
 
 (def db-uri "datomic:dev://localhost:4334/ecommerce")
 
@@ -47,8 +50,8 @@
               :db/doc         "The name of the category"}
 
              ;Transaction
-             {:db/ident     :tx-data/ip
-              :db/valueType :db.type/string
+             {:db/ident       :tx-data/ip
+              :db/valueType   :db.type/string
               :db/cardinality :db.cardinality/one}
              ])
 
@@ -97,6 +100,7 @@
   (d/q '[:find (pull ?entidade [*])
          :where [?entidade :product/name]] db))
 
+
 (defn all-names-prices-minimum [db minimum-price]
   (d/q '[:find ?name ?price
          :in $ ?price-filter
@@ -117,16 +121,28 @@
 (defn product-by-id [db id]
   (d/pull db '[*] [:product/id id]))
 
+(defn remove-db-id [entity]
+  (if (map? entity)
+    (dissoc entity :db/id)
+    entity))
 
-(defn all-categories [db]
-  (d/q '[:find (pull ?category [*])
-         :where [?category :category/id]] db))
+(defn datomic-to-domain [entities]
+  (walk/prewalk remove-db-id entities))
 
+(s/defn all-categories :- [model/Category] [db]
+  (datomic-to-domain (d/q '[:find [(pull ?category [*]) ...]
+                            :where [?category :category/id]] db)))
 
-(defn add-products! [conn products]
+(s/defn all-products-with-categories-embedded :- [model/Product] [db]
+  (datomic-to-domain (d/q '[:find [(pull ?entidade [* {:product/category [*]}]) ...]
+                            :where [?entidade :product/name]] db)))
+
+(s/defn add-products! [conn products :- [model/Product]]
   (d/transact conn products))
 
-(defn add-categories! [conn categories]
+(s/defn add-categories! [
+                         conn
+                         categories :- [model/Category]]
   (d/transact conn categories))
 
 (defn add-category-to-product! [conn product category]
@@ -182,3 +198,21 @@
          :in $ ?ip-search
          :where [?transaction :tx-data/ip ?ip-search]
          [?product :product/id _ ?transaction]] db ip))
+
+(defn create-samples [conn]
+  (def computers (model/new-category "Computers"))
+  (def cellphones (model/new-category "Cellphones"))
+  (add-categories! conn [computers cellphones])
+
+  (def computer (model/new-product "Novo computador" "/novo_computador" 4000.5M))
+  (def cellphone (model/new-product "celular" "/cellphone" 400.5M))
+  (def calculator (model/new-product "Calculadora" "/caluladora" 400.6M))
+  (def lowprice-cellphone (model/new-product "cel ular barato" "/celular-barato" 10.5M))
+
+  (add-products! conn [computer cellphone calculator lowprice-cellphone])
+
+  (add-category-to-product! conn cellphone cellphones)
+  (add-category-to-product! conn lowprice-cellphone cellphones)
+  (add-category-to-product! conn computer computers)
+
+  )
